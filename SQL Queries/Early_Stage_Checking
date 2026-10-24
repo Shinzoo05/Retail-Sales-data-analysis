@@ -1,0 +1,166 @@
+/* ========================  Stage 1: Early-stage checking and cleaning
+                                 Database used :-PRACTICE_GP (SQL Server) ==============================
+
+I HAVE:-
+     1. Added a Revenue column to sales = Quantity x Price x (1 - Discount)
+     2. Explored Revenue through dbo.sales 
+     3. Cleaned the products table:
+          - rounded Price to 2 decimal places
+          - replaced NULL in IsAllergic with 0
+          - changed ModifyDate to the DATE type
+     4. Given an overview of what each customer bought
+
+   Note: this is a practice database, so i have made changes directly.
+   In a real company, I would take a backup and use a transaction first!!
+   ======================================================================================================== */
+
+USE PRACTICE_GP;
+GO
+
+/* --------------------------------------------------------------
+   STEP 1: Added Revenue column as (it does not exist yet)
+   The "IF NOT EXISTS" here makes the script safe to run more than once.
+   -------------------------------------------------------------- */
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE Name = N'Revenue' AND Object_ID = Object_ID(N'dbo.sales'))
+BEGIN
+    ALTER TABLE dbo.sales ADD Revenue DECIMAL(12,2) NULL;
+END
+
+
+/* --------------------------------------------------------------
+   STEP 2:Revenue formula = Quantity x Price x (1 - Discount)
+   Price lives in the products table, so sales is joined to products.
+   -------------------------------------------------------------- */
+UPDATE s
+SET s.Revenue = s.Quantity * p.Price * (1 - s.Discount)
+FROM dbo.sales s
+JOIN dbo.products p ON s.ProductID = p.ProductID;
+
+-- ADDED CHECK: the formula assumes Discount is a fraction (0.10 = 10%)
+SELECT 
+    MIN(Discount) AS min_discount, 
+    MAX(Discount) AS max_discount 
+FROM dbo.sales;
+--[Found:- min discount= 0 and max discount= 0.20]
+
+
+/* --------------------------------------------------------------
+   STEP 3: Checked that Revenue was filled for every row
+   -------------------------------------------------------------- */
+SELECT COUNT(*) AS rows_with_revenue
+FROM dbo.sales
+WHERE Revenue IS NOT NULL;
+
+-- ADDED CHECK: compared with the total number of rows
+SELECT COUNT(*) AS total_rows 
+FROM dbo.sales;
+-- FOUND:-[ rows_with_revenue = 6758125 , which is same as total_rows i.e  6758125]
+
+
+/* --------------------------------------------------------------
+   STEP 4: Explorating
+   -------------------------------------------------------------- */
+-- 4a: Joined sales with products to see the overview
+SELECT TOP 10000 *
+FROM dbo.sales s
+LEFT JOIN dbo.products p ON p.ProductID = s.ProductID;
+
+-- 4b: Compared columns that make up Revenue
+SELECT TOP 10000
+    SalesID, Quantity, Price, Discount, Revenue, TotalPrice
+FROM dbo.sales s
+LEFT JOIN dbo.products p ON p.ProductID = s.ProductID;
+
+-- 4c: Displayed Price with 2 decimals (view only, nothing is changed)
+SELECT TOP 10000
+    SalesID, Quantity,
+    CAST(ROUND(p.Price, 2) AS DECIMAL(10,2)) AS Price,
+    Discount, Revenue, TotalPrice
+FROM dbo.sales s
+LEFT JOIN dbo.products p ON p.ProductID = s.ProductID;
+
+
+/* -------------------------------------------------------------------------------------
+   STEP 5: Rounded Price to 2 decimal places (done permanent change)
+   [why it is done?? :- Because price was listed in column "Price" with 6,7 decimal places...] 
+   ------------------------------------------------------------------------------------ */
+UPDATE dbo.products
+SET Price = ROUND(Price, 2);
+
+-- ADDED CHECK: should return 0
+SELECT COUNT(*) AS prices_with_more_than_2_decimals
+FROM dbo.products
+WHERE Price != ROUND(Price, 2);
+-- [RESULT i Found: 0]
+
+-- STEP 5b: Recalculate Revenue so it matches the rounded prices
+UPDATE s
+SET s.Revenue = s.Quantity * p.Price * (1 - s.Discount)
+FROM dbo.sales s
+JOIN dbo.products p ON s.ProductID = p.ProductID;
+--[message shown :-(6758125 rows affected)]
+
+-- ADDED CHECK: it should return 0
+SELECT COUNT(*) AS revenue_mismatch_rows
+FROM dbo.sales s
+JOIN dbo.products p ON s.ProductID = p.ProductID
+WHERE ABS(s.Revenue - s.Quantity * p.Price * (1 - s.Discount)) > 0.01;
+-- [RESULT Found: 0]
+
+/* --------------------------------------------------------------
+   STEP 6: Removed an extra helper column which i created earlier
+   I decided to clean IsAllergic directly instead of keeping IsAllergic_clean.
+   -------------------------------------------------------------- */
+ALTER TABLE dbo.products
+DROP COLUMN IF EXISTS IsAllergic_clean;
+
+
+
+/* --------------------------------------------------------------
+   STEP 7: Replaced NULL in IsAllergic with 0
+   ASSUMPTION is that: NULL is treated as 0 (not allergic).
+   REASON: Because only customers with known allergy are flagged
+   -------------------------------------------------------------- */
+UPDATE dbo.products
+SET IsAllergic = 0
+WHERE IsAllergic IS NULL;
+
+-- CHECKING:- what values does IsAllergic have now?
+SELECT IsAllergic, 
+    COUNT(*) AS total_products
+FROM dbo.products
+GROUP BY IsAllergic;
+--RESULT=> [total products I Found with : IsAllergic (0)= 295, IsAllergic (1)= 157]
+
+
+/* --------------------------------------------------------------------------------------------
+   STEP 8: Changed ModifyDate to the DATE type
+   [WHY?? :- Because it was datetime and the time part is not relevant or needed currently in this business...]
+   -------------------------------------------------------------------------------------------- */
+ALTER TABLE dbo.products
+ALTER COLUMN ModifyDate DATE;
+
+-- ADDED CHECK
+SELECT COLUMN_NAME, DATA_TYPE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'products' AND COLUMN_NAME = 'ModifyDate';
+
+
+/* -----------------------------------------------------------------
+   STEP 9: Finally Overview of each customer's location & products bought
+   ---------------------------------------------------------------------- */
+SELECT
+    co.CountryName,
+    ci.CityName,
+    cu.CustomerID,
+    cu.FirstName AS F_Name,
+    cu.LastName  AS L_Name,
+    COUNT(DISTINCT p.ProductID) AS NumberOfProductsBought,
+    STRING_AGG(p.ProductName, ',') AS ProductsPurchased
+FROM dbo.sales s
+JOIN customers cu ON s.CustomerID = cu.CustomerID
+JOIN cities ci    ON cu.CityID = ci.CityID
+JOIN countries co ON ci.CountryID = co.CountryID
+JOIN products p   ON s.ProductID = p.ProductID
+GROUP BY co.CountryName, ci.CityName, cu.CustomerID, cu.FirstName, cu.LastName
+ORDER BY cu.CustomerID;
