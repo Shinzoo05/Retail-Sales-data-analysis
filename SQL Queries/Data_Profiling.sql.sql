@@ -1,7 +1,7 @@
-/* =========================================================================================
-   Purpose : To check size, data types, missing values, duplicates and odd values in dataset
-   ========================================================================================= */
-USE PRACTICE_GP;  
+/* ===============================================================================================
+   Purpose here is:- To check size, data types, missing values, duplicates and odd values in dataset
+   ===============================================================================================*/
+USE PRACTICE_GP;   
 GO
 
 -- Q1): How big is each table?
