@@ -68,8 +68,18 @@ HAVING COUNT(*) > 1;
 SELECT ProductName, COUNT(*) AS Times FROM products GROUP BY ProductName HAVING COUNT(*) > 1;
 -- FINDINGs: No rows returned, hence no duplicates exist. 
 
+-- Q5): checking if any Broken links ?
+SELECT
+ (SELECT COUNT(*) FROM dbo.sales s LEFT JOIN dbo.customers c ON s.CustomerID = c.CustomerID
+   WHERE s.CustomerID IS NOT NULL AND c.CustomerID IS NULL)    AS missing_customers,
+ (SELECT COUNT(*) FROM dbo.sales s LEFT JOIN dbo.products p ON s.ProductID = p.ProductID
+   WHERE s.ProductID IS NOT NULL AND p.ProductID IS NULL)      AS missing_products,
+ (SELECT COUNT(*) FROM dbo.sales s LEFT JOIN dbo.employees e ON s.SalesPersonID = e.EmployeeID
+   WHERE s.SalesPersonID IS NOT NULL AND e.EmployeeID IS NULL) AS missing_salespeople;
+-- RESULT: (write what you saw)
 
---Q5): Are the labels and dates consistent??
+
+--Q6): Are the labels and dates consistent??
 SELECT IsAllergic, COUNT(*) AS TotalRows FROM products GROUP BY IsAllergic ORDER BY TotalRows DESC;
 SELECT Class,      COUNT(*) AS TotalRows FROM products GROUP BY Class      ORDER BY TotalRows DESC;
 SELECT Resistant,  COUNT(*) AS TotalRows FROM products GROUP BY Resistant  ORDER BY TotalRows DESC;
@@ -85,7 +95,7 @@ FROM sales
 WHERE SalesDate IS NOT NULL AND TRY_CONVERT(DATE, SalesDate) IS NULL;
 -- [FINDING :blank rows]
 
---Q6): checking if any impossible values?  
+--Q7): checking if any impossible values?  
 SELECT MIN(Quantity) AS MinQty, MAX(Quantity) AS MaxQty,
        MIN(Discount) AS MinDiscount, MAX(Discount) AS MaxDiscount,
        MIN(Revenue)  AS MinRevenue,  MAX(Revenue)  AS MaxRevenue
