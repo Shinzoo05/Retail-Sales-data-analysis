@@ -76,7 +76,7 @@ SELECT
    WHERE s.ProductID IS NOT NULL AND p.ProductID IS NULL)      AS missing_products,
  (SELECT COUNT(*) FROM dbo.sales s LEFT JOIN dbo.employees e ON s.SalesPersonID = e.EmployeeID
    WHERE s.SalesPersonID IS NOT NULL AND e.EmployeeID IS NULL) AS missing_salespeople;
--- RESULT: (write what you saw)
+-- [RESULT: No broken links found...]
 
 
 --Q6): Are the labels and dates consistent??
